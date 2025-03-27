@@ -138,19 +138,19 @@ static (double X1, double X2, double volume, int steps, int objCalls, List<(doub
     
     double val0 = ObjectiveFunction(X1, X2);
     simplex[0] = (X1, X2, val0);
-    path.Add((X1, X2, val0));
+    path.Add(simplex[0]);
     objCalls++;
     
     double x1 = Math.Min(X1 + stepSize, 1 - X2 - 1e-8);
     double val1 = ObjectiveFunction(x1, X2);
     simplex[1] = (x1, X2, val1);
-    path.Add((x1, X2, val1));
+    path.Add(simplex[1]);
     objCalls++;
     
     double x2 = Math.Min(X2 + stepSize, 1 - X1 - 1e-8);
     double val2 = ObjectiveFunction(X1, x2);
     simplex[2] = (X1, x2, val2);
-    path.Add((X1, x2, val2));
+    path.Add(simplex[2]);
     objCalls++;
 
     int steps = 0;
@@ -160,22 +160,19 @@ static (double X1, double X2, double volume, int steps, int objCalls, List<(doub
         Array.Sort(simplex, (a, b) => a.Value.CompareTo(b.Value));
 
         double edgeLength = Math.Max(
-            Math.Sqrt(Math.Pow(simplex[1].X1 - simplex[0].X1, 2) + 
-                     Math.Pow(simplex[1].X2 - simplex[0].X2, 2)),
-            Math.Sqrt(Math.Pow(simplex[2].X1 - simplex[0].X1, 2) + 
-                     Math.Pow(simplex[2].X2 - simplex[0].X2, 2))
+            Math.Sqrt(Math.Pow(simplex[1].X1 - simplex[0].X1, 2) + Math.Pow(simplex[1].X2 - simplex[0].X2, 2)),
+            Math.Sqrt(Math.Pow(simplex[2].X1 - simplex[0].X1, 2) + Math.Pow(simplex[2].X2 - simplex[0].X2, 2))
         );
         if (edgeLength < 1e-6) break;
 
         double cX1 = (simplex[0].X1 + simplex[1].X1) / 2;
         double cX2 = (simplex[0].X2 + simplex[1].X2) / 2;
 
-        double rX1 = cX1 + 1.0 * (cX1 - simplex[2].X1);
-        double rX2 = cX2 + 1.0 * (cX2 - simplex[2].X2);
+        double rX1 = cX1 + (cX1 - simplex[2].X1);
+        double rX2 = cX2 + (cX2 - simplex[2].X2);
         rX1 = Math.Max(1e-8, Math.Min(rX1, 1 - 1e-8));
         rX2 = Math.Max(1e-8, Math.Min(rX2, 1 - rX1 - 1e-8));
         double fReflect = ObjectiveFunction(rX1, rX2);
-        path.Add((rX1, rX2, fReflect));
         objCalls++;
 
         if (fReflect < simplex[0].Value)
@@ -185,62 +182,57 @@ static (double X1, double X2, double volume, int steps, int objCalls, List<(doub
             eX1 = Math.Max(1e-8, Math.Min(eX1, 1 - 1e-8));
             eX2 = Math.Max(1e-8, Math.Min(eX2, 1 - eX1 - 1e-8));
             double fExpand = ObjectiveFunction(eX1, eX2);
-            path.Add((eX1, eX2, fExpand));
             objCalls++;
 
-            simplex[2] = (fExpand < fReflect) ? (eX1, eX2, fExpand) : (rX1, rX2, fReflect);
+            if (fExpand < fReflect)
+            {
+                simplex[2] = (eX1, eX2, fExpand);
+                path.Add(simplex[2]);
+            }
+            else
+            {
+                simplex[2] = (rX1, rX2, fReflect);
+                path.Add(simplex[2]);
+            }
         }
         else if (fReflect < simplex[1].Value)
         {
             simplex[2] = (rX1, rX2, fReflect);
+            path.Add(simplex[2]);
         }
         else
         {
-            if (fReflect < simplex[2].Value)
-            {
-                double coX1 = cX1 + 0.5 * (rX1 - cX1);
-                double coX2 = cX2 + 0.5 * (rX2 - cX2);
-                coX1 = Math.Max(1e-8, Math.Min(coX1, 1 - 1e-8));
-                coX2 = Math.Max(1e-8, Math.Min(coX2, 1 - coX1 - 1e-8));
-                double fContract = ObjectiveFunction(coX1, coX2);
-                path.Add((coX1, coX2, fContract));
-                objCalls++;
+            double coX1 = cX1 + 0.5 * (rX1 - cX1);
+            double coX2 = cX2 + 0.5 * (rX2 - cX2);
+            coX1 = Math.Max(1e-8, Math.Min(coX1, 1 - 1e-8));
+            coX2 = Math.Max(1e-8, Math.Min(coX2, 1 - coX1 - 1e-8));
+            double fContract = ObjectiveFunction(coX1, coX2);
+            objCalls++;
 
-                if (fContract <= fReflect)
-                    simplex[2] = (coX1, coX2, fContract);
-                else
-                    PerformShrink();
+            if (fContract <= fReflect)
+            {
+                simplex[2] = (coX1, coX2, fContract);
+                path.Add(simplex[2]);
             }
             else
             {
-                double ciX1 = cX1 - 0.5 * (cX1 - simplex[2].X1);
-                double ciX2 = cX2 - 0.5 * (cX2 - simplex[2].X2);
-                ciX1 = Math.Max(1e-8, Math.Min(ciX1, 1 - 1e-8));
-                ciX2 = Math.Max(1e-8, Math.Min(ciX2, 1 - ciX1 - 1e-8));
-                double fContract = ObjectiveFunction(ciX1, ciX2);
-                path.Add((ciX1, ciX2, fContract));
-                objCalls++;
-
-                if (fContract < simplex[2].Value)
-                    simplex[2] = (ciX1, ciX2, fContract);
-                else
-                    PerformShrink();
+                PerformShrink();
             }
         }
+    }
 
-        void PerformShrink()
+    void PerformShrink()
+    {
+        for (int j = 1; j < 3; j++)
         {
-            for (int j = 1; j < 3; j++)
-            {
-                double sX1 = simplex[0].X1 + 0.5 * (simplex[j].X1 - simplex[0].X1);
-                double sX2 = simplex[0].X2 + 0.5 * (simplex[j].X2 - simplex[0].X2);
-                sX1 = Math.Max(1e-8, Math.Min(sX1, 1 - 1e-8));
-                sX2 = Math.Max(1e-8, Math.Min(sX2, 1 - sX1 - 1e-8));
-                double fShrink = ObjectiveFunction(sX1, sX2);
-                simplex[j] = (sX1, sX2, fShrink);
-                path.Add((sX1, sX2, fShrink));
-                objCalls++;
-            }
+            double sX1 = simplex[0].X1 + 0.5 * (simplex[j].X1 - simplex[0].X1);
+            double sX2 = simplex[0].X2 + 0.5 * (simplex[j].X2 - simplex[0].X2);
+            sX1 = Math.Max(1e-8, Math.Min(sX1, 1 - 1e-8));
+            sX2 = Math.Max(1e-8, Math.Min(sX2, 1 - sX1 - 1e-8));
+            double fShrink = ObjectiveFunction(sX1, sX2);
+            objCalls++;
+            simplex[j] = (sX1, sX2, fShrink);
+            path.Add(simplex[j]);
         }
     }
 
@@ -248,7 +240,8 @@ static (double X1, double X2, double volume, int steps, int objCalls, List<(doub
     double volume = Math.Sqrt(simplex[0].X1 * simplex[0].X2 * X3 / 8);
     
     return (simplex[0].X1, simplex[0].X2, volume, steps, objCalls, path);
-}        static void RunPythonVisualization(string jsonFilePath)
+}
+        static void RunPythonVisualization(string jsonFilePath)
         {
             string pythonScriptPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "visualize_paths.py");
     
