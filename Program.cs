@@ -25,7 +25,6 @@ namespace BoxOptimization
             );
         }
 
-        // Lipsico konstanta
         static double ComputeGamma(double X1, double X2)
         {
             double a = 0.25 * X2;
